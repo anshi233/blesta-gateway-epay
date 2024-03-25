@@ -1,0 +1,13 @@
+{
+	"version": "0.0.1",
+	"name": "BlestaEPay.name",
+	"description": "BlestaEPay.description",
+	"authors": [
+        {
+            "name": "Anshi",
+            "url": "https://www.catserver.ca"
+        }
+    ],
+	"currencies": ["AUD", "BRL", "CAD", "CZK", "DKK", "EUR", "HKD", "HUF", "ILS", "JPY", "MYR", "MXN", "NOK", "NZD", "PHP", "PLN", "GBP", "SGD", "SEK", "CHF", "TWD", "THB", "TRY", "USD"],
+	"signup_url": "https://pay.cccyun.cc"
+}

@@ -1,0 +1,29 @@
+    
+    <ul>
+        <li>
+            <?php
+            $this->Form->label($this->_('PaypalCheckout.meta.client_id', true), 'client_id');
+            $this->Form->fieldText('client_id', ($meta['client_id'] ?? null), ['id' => 'client_id', 'class' => 'block']);
+            ?>
+        </li>
+        <li>
+            <?php
+            $this->Form->label($this->_('PaypalCheckout.meta.client_secret', true), 'client_secret');
+            $this->Form->fieldText('client_secret', ($meta['client_secret'] ?? null), ['id' => 'client_secret', 'class' => 'block']);
+            ?>
+        </li>
+        <li>
+            <?php
+            $this->Form->fieldCheckbox('sandbox', 'true', (($meta['sandbox'] ?? 'false') == 'true'), ['id' => 'sandbox']);
+            $this->Form->label($this->_('PaypalCheckout.meta.sandbox', true), 'sandbox', ['class' => 'inline']);
+            ?>
+        </li>
+    </ul>
+
+    <div class="title_row">
+        <h3><?php $this->_('PaypalCheckout.webhook'); ?></h3>
+    </div>
+    <div class="pad">
+        <p><?php $this->_('PaypalCheckout.webhook_note'); ?></p>
+        <code><?php echo Configure::get('Blesta.gw_callback_url') . Configure::get('Blesta.company_id') . '/paypal_checkout/'; ?></code>
+    </div>

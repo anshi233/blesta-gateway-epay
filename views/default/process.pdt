@@ -1,0 +1,17 @@
+
+    <script src="https://www.paypal.com/sdk/js?client-id=<?php echo $this->Html->safe($client_id ?? ''); ?>"></script>
+    <div id="paypal-button-container"></div>
+    <script>
+        paypal.Buttons({
+            onClick()  {
+                window.location.href = '<?php echo $this->Html->safe($post_to ?? ''); ?>';
+            },
+            style: {
+                layout: 'horizontal',
+                color: 'blue',
+                shape: 'rect',
+                label: 'pay',
+                tagline: false
+            }
+        }).render('#paypal-button-container');
+    </script>

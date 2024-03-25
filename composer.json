@@ -1,0 +1,15 @@
+{
+    "name": "blesta/paypal_checkout",
+    "description": "PayPal Checkout",
+    "license": "proprietary",
+    "type": "blesta-gateway-nonmerchant",
+    "require": {
+        "blesta/composer-installer": "~1.0"
+    },
+    "authors": [
+        {
+            "name": "Phillips Data, Inc.",
+            "homepage": "https://blesta.com"
+        }
+    ]
+}
