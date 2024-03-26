@@ -1,6 +1,6 @@
 <?php
 /**
- * PayPal Checkout Gateway
+ * EPay(易支付) Gateway
  *
  * Allows users to pay via PayPal and 10+ local payment methods
  *
@@ -11,12 +11,16 @@
  * @license http://www.blesta.com/license/ The Blesta License Agreement
  * @link http://www.blesta.com/ Blesta
  */
-class BlestaEPay extends NonmerchantGateway
+class EPayGateway extends NonmerchantGateway
 {
     /**
      * @var array An array of meta data for this gateway
      */
     private $meta;
+    /**
+     * @var array An array of EPay parameters
+     */
+    private $ePayConfig;
 
     /**
      * Construct a new merchant gateway
@@ -34,7 +38,7 @@ class BlestaEPay extends NonmerchantGateway
         Loader::loadComponents($this, ['Input']);
 
         // Load the language required by this gateway
-        Language::loadLang('paypal_checkout', null, dirname(__FILE__) . DS . 'language' . DS);
+        Language::loadLang('epay', null, dirname(__FILE__) . DS . 'language' . DS);
     }
 
     /**
@@ -45,6 +49,12 @@ class BlestaEPay extends NonmerchantGateway
     public function setMeta(array $meta = null)
     {
         $this->meta = $meta;
+        //Also set the EPay parameters
+        $ePayConfig['apiurl'] = $meta->apiurl;
+        //商户ID
+        $ePayConfig['pid'] = $meta->pid;
+        //商户密钥
+        $ePayConfig['key'] = $meta->key;
     }
 
     /**
@@ -57,7 +67,7 @@ class BlestaEPay extends NonmerchantGateway
     {
         // Load the view into this object, so helpers can be automatically add to the view
         $this->view = new View('settings', 'default');
-        $this->view->setDefaultView('components' . DS . 'gateways' . DS . 'nonmerchant' . DS . 'blesta_epay' . DS);
+        $this->view->setDefaultView('components' . DS . 'gateways' . DS . 'nonmerchant' . DS . 'epay_gateway' . DS);
 
         // Load the helpers required for this view
         Loader::loadHelpers($this, ['Form', 'Html']);
@@ -75,6 +85,7 @@ class BlestaEPay extends NonmerchantGateway
      */
     public function editSettings(array $meta)
     {
+        //TO-DO: Replace to EPAY Settings
         // Set unset checkboxes
         $checkbox_fields = ['sandbox'];
         foreach ($checkbox_fields as $checkbox_field) {
@@ -82,20 +93,49 @@ class BlestaEPay extends NonmerchantGateway
                 $meta[$checkbox_field] = 'false';
             }
         }
-//Starting from here
+        //Starting from here
         // Set rules
         $rules = [
-            'client_id' => [
-                'valid' => [
-                    'rule' => [[$this, 'validateConnection'], $meta['client_secret'], $meta['sandbox']],
-                    'message' => Language::_('PaypalCheckout.!error.client_id.valid', true)
-                ]
-            ],
-            'client_secret' => [
-                'valid' => [
+            //Merchant ID
+            'pid' => [
+                //Check is pid is empty
+                'empty' => [
                     'rule' => 'isEmpty',
                     'negate' => true,
-                    'message' => Language::_('PaypalCheckout.!error.client_secret.valid', true)
+                    'message' => Language::_('EPayGateway.!error.pid.empty', true)
+                ],
+                //Check is the pid is valid
+                'valid' => [
+                    'rule' => [[$this, 'validateConnection'], $meta['pid']],
+                    'message' => Language::_('EPayGateway.!error.pid.valid', true)
+                ]
+            ],
+            //Merchant Key
+            'key' => [
+                //Check is key is empty
+                'empty' => [
+                    'rule' => 'isEmpty',
+                    'negate' => true,
+                    'message' => Language::_('EPayGateway.!error.key.empty', true)
+                ],
+                //Check is the key is valid
+                'valid' => [
+                    'rule' => [[$this, 'validateConnection'], $meta['key']],
+                    'message' => Language::_('EPayGateway.!error.key.valid', true)
+                ]
+            ],
+            //Gateway URL
+            'apiurl' => [
+                //Check is apiurl is empty
+                'empty' => [
+                    'rule' => 'isEmpty',
+                    'negate' => true,
+                    'message' => Language::_('EPayGateway.!error.apiurl.empty', true)
+                ],
+                //Check is apiurl is valid
+                'valid' => [
+                    'rule' => [[$this, 'validateConnection'], $meta['apiurl']],
+                    'message' => Language::_('EPayGateway.!error.apiurl.valid', true)
                 ]
             ]
         ];
@@ -115,7 +155,10 @@ class BlestaEPay extends NonmerchantGateway
      */
     public function encryptableFields()
     {
-        return ['client_secret'];
+        //return empty array
+        //For debug, no need to encrypt now
+        //return ['key'];
+        return [];
     }
 
     /**
@@ -183,17 +226,51 @@ class BlestaEPay extends NonmerchantGateway
             }
         }
 
+        // At this line, we will load the view html file. It is the payment button.
         $this->view = $this->makeView('process', 'default', str_replace(ROOTWEBDIR, '', dirname(__FILE__) . DS));
 
         // Load the models and helpers required for this view
         Loader::loadModels($this, ['Companies']);
         Loader::loadHelpers($this, ['Form', 'Html']);
 
+        // Get Client Information
+        Loader::loadModels($this, ['Contacts']);
+
         // Get company information
         $company = $this->Companies->get(Configure::get('Blesta.company_id'));
 
+        //TO-DO: Blesta might potentially sending multiple invoices into this function.
+        //Do we need to handle this case?
+        //How
+
+
         // Initialize API
-        $api = $this->getApi($this->meta['client_id'], $this->meta['client_secret'], $this->meta['sandbox']);
+        $api = $this->getApi($ePayConfig);
+        // For EPay, we need to don't need to create order first.
+        // Just collect enough information and send to EPay directly, it will give us a payment link.
+        // We will use the EPayCore class to do this.
+        // ePayUrl is the link that we want to redirect the user to.
+        $orderInfo = array(
+            "pid" => $ePayConfig['pid'],
+            //Type leave blank for now. We want to let user select payment method. (Alipay, WeChat Pay .etc)
+            //TO-DO: Add a dropdown to let user select payment method. (No ETA)
+            "type" => '',
+            //Notify URL is the blesta websocket URL.
+            "notify_url" => $notify_url,
+            //Return URL is the URL that user will be redirected to after payment.
+            "return_url" => $options->return_url,
+            //out_trade_no is our blesta created order number(Invoice number)
+            "out_trade_no" => $out_trade_no,
+            //name is the product name e.g. "HK VPS Value Plan"
+            "name" => $name,
+            //money is the price of the product in RMB!!!
+            "money"	=> $money,
+        );
+        $ePayUrl = $api->getPayLink($param_tmp);
+
+
+
+        // Create order with given information
         $orders = new PaypalCheckoutOrders($api);
 
         // Generate order
@@ -566,15 +643,14 @@ class BlestaEPay extends NonmerchantGateway
     /**
      * Loads the given API if not already loaded
      *
-     * @param string $client_id The client ID of PayPal Checkout
-     * @param string $client_secret The client secret key
-     * @param string $sandbox Whether or not to use the sandbox environment
+     * @param array $ePayConfig The EPay configuration
      */
-    private function getApi(string $client_id, string $client_secret, $sandbox = 'false')
+    private function getApi($ePayConfig)
     {
-        $environment = ($sandbox == 'false' ? 'live' : 'sandbox');
+        //$environment = ($sandbox == 'false' ? 'live' : 'sandbox');
+        //Based on input parameter, constuct the parameter array
 
-        return new PaypalCheckoutApi($client_id, $client_secret, $environment);
+        return new EpayCore($ePayConfig);
     }
 
     /**
