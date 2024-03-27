@@ -50,11 +50,12 @@ class EPayGateway extends NonmerchantGateway
     {
         $this->meta = $meta;
         //Also set the EPay parameters
-        $ePayConfig['apiurl'] = $meta->apiurl;
+        $ePayConfig['apiurl']     = $meta->apiurl;
         //商户ID
-        $ePayConfig['pid'] = $meta->pid;
+        $ePayConfig['pid']        = $meta->pid;
         //商户密钥
-        $ePayConfig['key'] = $meta->key;
+        $ePayConfig['key']        = $meta->key;
+
     }
 
     /**
@@ -85,15 +86,6 @@ class EPayGateway extends NonmerchantGateway
      */
     public function editSettings(array $meta)
     {
-        //TO-DO: Replace to EPAY Settings
-        // Set unset checkboxes
-        $checkbox_fields = ['sandbox'];
-        foreach ($checkbox_fields as $checkbox_field) {
-            if (!isset($meta[$checkbox_field])) {
-                $meta[$checkbox_field] = 'false';
-            }
-        }
-        //Starting from here
         // Set rules
         $rules = [
             //Merchant ID
@@ -218,13 +210,8 @@ class EPayGateway extends NonmerchantGateway
             $options['recur']['amount'] = round($options['recur']['amount'], 2);
         }
 
-        // Remove decimals on unsupported currencies
-        if (in_array($this->currency, ['HUF', 'JPY', 'TWD'])) {
-            $amount = round($amount, 0);
-            if (isset($options['recur']['amount'])) {
-                $options['recur']['amount'] = round($options['recur']['amount'], 0);
-            }
-        }
+        //EPay only support RMB
+
 
         // At this line, we will load the view html file. It is the payment button.
         $this->view = $this->makeView('process', 'default', str_replace(ROOTWEBDIR, '', dirname(__FILE__) . DS));
@@ -239,9 +226,9 @@ class EPayGateway extends NonmerchantGateway
         // Get company information
         $company = $this->Companies->get(Configure::get('Blesta.company_id'));
 
-        //TO-DO: Blesta might potentially sending multiple invoices into this function.
-        //Do we need to handle this case?
-        //How
+        //Serialize all invoice 
+        $out_trade_no =  $this->serializeInvoices($invoice_amounts);
+
 
 
         // Initialize API
@@ -256,63 +243,70 @@ class EPayGateway extends NonmerchantGateway
             //TO-DO: Add a dropdown to let user select payment method. (No ETA)
             "type" => '',
             //Notify URL is the blesta websocket URL.
-            "notify_url" => $notify_url,
+            "notify_url" => Configure::get('Blesta.gw_callback_url') . Configure::get('Blesta.company_id') . '/epay/';,
             //Return URL is the URL that user will be redirected to after payment.
-            "return_url" => $options->return_url,
+            "return_url" => $options['return_url'],
             //out_trade_no is our blesta created order number(Invoice number)
             "out_trade_no" => $out_trade_no,
             //name is the product name e.g. "HK VPS Value Plan"
-            "name" => $name,
+            "name" => $option->description,
             //money is the price of the product in RMB!!!
-            "money"	=> $money,
+            "money"	=> $amount,
+            //use EPay API's param field to passing client_id
+            "param" => "client_id=" . $contact_info['id']
         );
-        $ePayUrl = $api->getPayLink($param_tmp);
-
-
-
-        // Create order with given information
-        $orders = new PaypalCheckoutOrders($api);
-
-        // Generate order
-        $params = [
-            'purchase_units' => [
-                [
-                    'description' => $options['description'] ?? '',
-                    'soft_descriptor' => substr(preg_replace('/[^a-z1-9\ \-\*\.]/i', '', $company->name ?? ''), 0, 22),
-                    'amount' => [
-                        'currency_code' => $this->currency,
-                        'value' => $amount
-                    ],
-                    'reference_id' => $this->serializeInvoices($invoice_amounts),
-                    'custom_id' => $contact_info['client_id'] ?? null
-                ]
-
-            ],
-            'intent' => 'CAPTURE',
-            'application_context' => [
-                'return_url' => $options['return_url'] ?? null,
-                'cancel_url' => $options['return_url'] ?? null
-            ]
-        ];
-        $order = $orders->create($params);
-        $response = $order->response();
-
-        $this->log('buildProcess', json_encode($params), 'input', true);
-        $this->log('buildProcess', json_encode($response), 'output', empty($order->errors()));
-
-        // Get payment url
-        $post_to = '#';
-        foreach ($response->links as $link) {
-            if ($link->rel == 'approve') {
-                $post_to = $link->href;
-            }
+        //Log the api input
+        $this->log('buildProcess', json_encode($orderInfo), 'input', true);
+        //Get payment link
+        try {
+            $ePayUrl = $api->getPayLink($orderInfo);
+        } catch (Exception $e) {
+            $this->Input->setErrors(['api' => ['internal' => $e->getMessage()]]);
+            return;
         }
-
-        $this->view->set('client_id', $this->meta['client_id']);
-        $this->view->set('post_to', $post_to);
+        
+        $this->view->set('epay_url', $ePayUrl);
 
         return $this->view->fetch();
+
     }
+
+    /**
+     * Handle Verified payment result information
+     * This function will format the raw EPay API return information to somthing Blesta can understand.
+     * @param array $get The GET data from EPay API requests
+     * @return array The array of transaction data
+     */
+    private function handleEPayOrder(array $get){
+        $out_trade_no = $get['out_trade_no'] ?? null;
+        $trade_no = $get['trade_no'] ?? null;
+        $trade_status = $get['trade_status'] ?? null;
+        $type = $get['type'] ?? null;
+        //I will use amount not money
+        $amount = $get['money'] ?? null;
+
+        // Start process the successful payment
+        // Get Client ID from EPay API's param field
+        preg_match('/client_id=(\d+)/', $get['param'], $matches);
+        if (!empty($matches) && !empty($matches[1])) {
+            $clientId = $matches[1];
+        } else {
+            // Handle the case where client_id is empty or not found
+            $this->Input->setErrors(['api' => ['internal' => 'empty client id']]);
+            return;
+        }
+        return [
+            'client_id' => $clientId ?? null,
+            'amount' => $amount,
+            'currency' => 'CNY',
+            'invoices' => $this->unserializeInvoices($out_trade_no),
+            'status' => 'approved',
+            'reference_id' => null,
+            'transaction_id' => $trade_no,
+            'parent_transaction_id' => null
+        ];
+    }
+
 
     /**
      * Validates the incoming POST/GET response from the gateway to ensure it is
@@ -336,116 +330,41 @@ class EPayGateway extends NonmerchantGateway
     public function validate(array $get, array $post)
     {
         // Initialize API
-        $api = $this->getApi($this->meta['client_id'], $this->meta['client_secret'], $this->meta['sandbox']);
-        $payments = new PaypalCheckoutPayments($api);
-
+        $api = $this->getApi($ePayConfig);
+        //$webhook = json_decode($payload);
         // Fetch webhook payload
-        $payload = file_get_contents('php://input');
-        $webhook = json_decode($payload);
-
+        // $payload = file_get_contents('php://input');
+        //From raw get data verify EPay sign
+        $sign_result = $api->verifyReturnBlesta($get);
+        if($sign_result == false) {
+            //Throw error when sign validation failed
+            $this->Input->setErrors([
+                'event' => ['invalid_sign' => Language::_('EPayGateway.!error.event.invalid_sign', true)]
+            ]);
+            return; 
+        }
         // Discard all webhook events, except when the order is completed or approved
-        $events = ['CHECKOUT.ORDER.APPROVED', 'PAYMENT.CAPTURE.COMPLETED'];
-        if (!in_array($webhook->event_type ?? '', $events)) {
+        if ($get['trade_status'] != 'TRADE_SUCCESS') {
+            //Throw error event for unsuccessful payment result
             $this->Input->setErrors([
-                'event' => ['unsupported' => Language::_('PaypalCheckout.!error.event.unsupported', true)]
+                'event' => ['unsupported' => Language::_('EPayGateway.!error.event.unsupported', true)]
             ]);
             return;
         }
 
-        $this->log('validate', json_encode($webhook), 'input', !empty($webhook));
 
-        // Capture payment
-        if ($webhook->event_type == 'CHECKOUT.ORDER.APPROVED') {
-            $orders = new PaypalCheckoutOrders($api);
-            $response = $orders->capture(['id' => $webhook->resource->id]);
 
-            $this->log('capture', json_encode($response->response()), 'output', empty($response->errors()));
-
-            // Output errors
-            if (($errors = $response->errors())) {
-                $this->Input->setErrors($errors);
-                return;
-            }
-
-            return [
-                'client_id' => $webhook->resource->purchase_units[0]->custom_id ?? null,
-                'amount' => $webhook->resource->purchase_units[0]->amount->value ?? null,
-                'currency' => $webhook->resource->purchase_units[0]->amount->currency_code ?? null,
-                'invoices' => $this->unserializeInvoices($webhook->resource->purchase_units[0]->reference_id ?? ''),
-                'status' => 'pending',
-                'reference_id' => null,
-                'transaction_id' => $webhook->resource->id ?? null,
-                'parent_transaction_id' => null
-            ];
-        }
-
-        // Set the payment
-        $payment = $webhook->resource ?? (object) [];
-
-        // Fetch the transaction
-        $order_response = (object) [];
-        $order = (object) [];
-        $transaction = (object) [];
-        if (isset($payment->supplementary_data->related_ids->order_id)) {
-            $orders = new PaypalCheckoutOrders($api);
-            $order_response = $orders->get(['id' => $payment->supplementary_data->related_ids->order_id]) ?? (object) [];
-            $order = $order_response->response();
-            $transaction = $order->purchase_units[0] ?? (object) [];
-        }
-
-        $this->log('validate', json_encode($transaction), 'output', !empty($transaction));
-
-        if (empty($transaction)) {
-            $this->Input->setErrors([
-                'transaction' => ['missing' => Language::_('PaypalCheckout.!error.transaction.missing', true)]
-            ]);
-            return;
-        }
-
-        // Set status
-        $status = 'error';
-        $success = false;
-        switch ($payment->status ?? 'ERROR') {
-            case 'COMPLETED':
-                $status = 'approved';
-                $success = true;
-                break;
-            case 'APPROVED':
-                $status = 'pending';
-                $success = true;
-                break;
-            case 'VOIDED':
-                $status = 'void';
-                $success = true;
-                break;
-        }
-
-        if (!$success) {
-            $this->Input->setErrors($this->getCommonError('general'));
-            return;
-        }
-
-        // Output errors
-        if (($errors = $order_response->errors())) {
-            $this->Input->setErrors($errors);
-            return;
-        }
-
-        return [
-            'client_id' => $transaction->custom_id ?? null,
-            'amount' => $payment->amount->value ?? null,
-            'currency' => $payment->amount->currency_code ?? null,
-            'invoices' => $this->unserializeInvoices($transaction->reference_id ?? ''),
-            'status' => $status,
-            'reference_id' => $payment->id ?? null,
-            'transaction_id' => $order->id ?? null,
-            'parent_transaction_id' => null
-        ];
+        // log the sucess payment in blesta logs
+        $this->log('validate', json_encode($get), 'input', !empty($get));
+        return $this->handleEPayOrder($get)
     }
 
     /**
      * Returns data regarding a success transaction. This method is invoked when
      * a client returns from the non-merchant gateway's web site back to Blesta.
+     * Most of the part of this function will be same as $this->validate()
+     * however, we don't trust client since they might do the return attack.
+     * Extra layer of security is done by requesting EPay API Gateway to confrim.
      *
      * @param array $get The GET data for this request
      * @param array $post The POST data for this request
@@ -463,34 +382,42 @@ class EPayGateway extends NonmerchantGateway
     public function success(array $get, array $post)
     {
         // Initialize API
-        $api = $this->getApi($this->meta['client_id'], $this->meta['client_secret'], $this->meta['sandbox']);
-        $orders = new PaypalCheckoutOrders($api);
-
-        $this->log('success', json_encode($get), 'output', !empty($get));
-
-        // Fetch the order, if a token is provided
-        if (!empty($get['token'])) {
-            $order = $orders->get(['id' => $get['token']]);
-            $response = $order->response();
+        $api = $this->getApi($ePayConfig);
+        //$webhook = json_decode($payload);
+        // Fetch webhook payload
+        // $payload = file_get_contents('php://input');
+        //From raw get data verify EPay sign
+        $sign_result = $api->verifyReturnBlesta($get);
+        if($sign_result == false) {
+            //Throw error when sign validation failed
+            $this->Input->setErrors([
+                'event' => ['invalid_sign' => Language::_('EPayGateway.!error.event.invalid_sign', true)]
+            ]);
+            return; 
+        }
+        // Discard all webhook events, except when the order is completed or approved
+        if ($get['trade_status'] != 'TRADE_SUCCESS') {
+            //Throw error event for unsuccessful payment result
+            $this->Input->setErrors([
+                'event' => ['unsupported' => Language::_('EPayGateway.!error.event.unsupported', true)]
+            ]);
+            return;
+        }
+        //Send a extra request to API Gateway to make sure gateway really get the payment
+        $isPaid = $this->$orderStatus($get['trade_no'] ?? null);
+        if(!$isPaid){
+            //user return success but gateway not receive payment???
+            //Suspicous! Not accept this request.
+            this->Input->setErrors([
+                'event' => ['fake_success_payment' => Language::_('EPayGateway.!error.event.fake_success_payment', true)]
+            ]);
+            return;
         }
 
-        // Set transaction
-        $transaction = (object) [];
-        if (!empty($response->purchase_units)) {
-            $transaction = $response->purchase_units[0] ?? (object) [];
-        }
 
-        $params = [
-            'client_id' => $transaction->custom_id ?? null,
-            'amount' => $transaction->amount->value ?? null,
-            'currency' => $transaction->amount->currency_code ?? null,
-            'invoices' => $this->unserializeInvoices($transaction->reference_id ?? ''),
-            'status' => 'approved',
-            'transaction_id' => $get['token'] ?? null,
-            'parent_transaction_id' => null
-        ];
-
-        return $params;
+        // log the sucess payment in blesta logs
+        $this->log('validate', json_encode($get), 'input', !empty($get));
+        return $this->handleEPayOrder($get)
     }
 
     /**
@@ -509,46 +436,10 @@ class EPayGateway extends NonmerchantGateway
      */
     public function refund($reference_id, $transaction_id, $amount, $notes = null)
     {
-        // Initialize API
-        $api = $this->getApi($this->meta['client_id'], $this->meta['client_secret'], $this->meta['sandbox']);
-        $payments = new PaypalCheckoutPayments($api);
-
-        $this->log('getpayment', json_encode(compact('reference_id', 'transaction_id')), 'input', !empty($get));
-
-        // Fetch the payment
-        $payment = $payments->get(['id' => $reference_id]);
-        $response = $payment->response();
-        $this->log('getpayment', json_encode($response), 'output', empty($payment->errors() ?? []));
-
-        if (empty($response) || !isset($response->status)) {
-            $this->Input->setErrors($this->getCommonError('general'));
-            return;
-        }
-
-        // Attempt a refund
-        try {
-            $params = [
-                'capture_id' => $reference_id,
-                'amount' => (object)['value' => $amount, 'currency_code' => $response->amount->currency_code]
-            ];
-            $this->log('refund', json_encode($params), 'input', true);
-            $refund = $payments->refund($params);
-            $this->log('refund', $refund->raw(), 'output', $refund->status() == '200');
-        } catch (Throwable $e) {
-            $this->Input->setErrors(['internal' => ['internal' => $e->getMessage()]]);
-            return;
-        }
-
-        // Output errors
-        if (($errors = $refund->errors())) {
-            $this->Input->setErrors(['internal' => $errors]);
-            return;
-        }
-
-        return [
-            'status' => 'refunded',
-            'transaction_id' => $transaction_id
-        ];
+        //TO-DO Add automatic refund feature
+        // Method is unsupported for now
+        if (isset($this->Input))
+        $this->Input->setErrors($this->getCommonError("unsupported"));
     }
 
     /**
@@ -566,39 +457,9 @@ class EPayGateway extends NonmerchantGateway
      */
     public function void($reference_id, $transaction_id, $notes = null)
     {
-        // Initialize API
-        $api = $this->getApi($this->meta['client_id'], $this->meta['client_secret'], $this->meta['sandbox']);
-        $payments = new PaypalCheckoutPayments($api);
-
-        $this->log('void', json_encode(compact('reference_id', 'transaction_id')), 'output', !empty($get));
-
-        // Fetch the payment
-        $payment = $payments->get(['id' => $reference_id]);
-        $response = $payment->response();
-
-        if (empty($response) || !isset($response->status)) {
-            $this->Input->setErrors($this->getCommonError('general'));
-            return;
-        }
-
-        // Attempt void
-        try {
-            $void = $payments->void(['capture_id' => $reference_id]);
-            $this->log('void', $void->raw(), 'output', $void->status() == '200');
-        } catch (Throwable $e) {
-            return;
-        }
-
-        // Output errors
-        if (($errors = $void->errors())) {
-            $this->Input->setErrors(['internal' => $errors]);
-            return;
-        }
-
-        return [
-            'status' => 'void',
-            'transaction_id' => $transaction_id
-        ];
+        // Method is unsupported for now
+        if (isset($this->Input))
+        $this->Input->setErrors($this->getCommonError("unsupported"));
     }
 
     /**
@@ -661,33 +522,26 @@ class EPayGateway extends NonmerchantGateway
      * @param string $sandbox Whether or not to use the sandbox environment
      * @return bool True if the API Key is valid, false otherwise
      */
-    public function validateConnection($client_id, $client_secret, $sandbox = 'false')
+    public function validateConnection($pid, $key, $apiurl)
     {
         try {
             // Initialize API
             $api = $this->getApi($client_id, $client_secret, $sandbox);
-            $orders = new PaypalCheckoutOrders($api);
+            $merchantInfo = $api->queryMerchant($pid, $key, $apiurl);
 
-            $params = [
-                'purchase_units' => [
-                    [
-                        'description' => 'Blesta',
-                        'soft_descriptor' => 'Blesta',
-                        'amount' => [
-                            'currency_code' => 'USD',
-                            'value' => '0.99'
-                        ]
-                    ]
-                ],
-                'intent' => 'AUTHORIZE'
-            ];
-            $order = $orders->create($params);
-            $response = $order->response();
+            if(!empty($merchantInfo) && !empty($merchantInfo['code'])){
+                if($code == 1){
+                    return true;
+                }else{
+                    $this->Input->setErrors(['create' => ['response' => 'EPay API Gateway return code ' . $code]]);
+                    return false;
+                }
+            }
+            $this->Input->setErrors(['create' => ['response' => 'Failed to connect to EPay API Gateway']]);
+            return false;
 
-            return !empty($response->links);
         } catch (Throwable $e) {
             $this->Input->setErrors(['create' => ['response' => $e->getMessage()]]);
-
             return false;
         }
     }

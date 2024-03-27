@@ -4,7 +4,7 @@
     <script>
         paypal.Buttons({
             onClick()  {
-                window.location.href = '<?php echo $this->Html->safe($post_to ?? ''); ?>';
+                window.location.href = '<?php echo $this->Html->safe($epay_url ?? ''); ?>';
             },
             style: {
                 layout: 'horizontal',

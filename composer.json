@@ -1,15 +1,21 @@
 {
-    "name": "blesta/paypal_checkout",
-    "description": "PayPal Checkout",
-    "license": "proprietary",
+    "name": "Catserver/epay",
+    "description": "EPay gateway API",
+    "license": "MIT",
     "type": "blesta-gateway-nonmerchant",
     "require": {
         "blesta/composer-installer": "~1.0"
     },
     "authors": [
         {
-            "name": "Phillips Data, Inc.",
-            "homepage": "https://blesta.com"
+            "name": "Anshi",
+            "homepage": "https://www.catserver.ca"
         }
-    ]
+    ],
+    "config": {
+        "allow-plugins": {
+            "composer/installers": true,
+            "blesta/composer-installer": true
+        }
+    }
 }

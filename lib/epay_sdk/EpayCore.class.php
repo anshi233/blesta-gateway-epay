@@ -79,9 +79,33 @@ class EpayCore
 
 		return $signResult;
 	}
+	/**
+     * Validates the incoming POST/GET response from the gateway and verify its sign
+     * @param array $get The GET data for this request
+     * @param array $post The POST data for this request
+     * @return array An array of transaction data, sets any errors using Input if the data fails to validate
+	 **/
+	public function verifyReturnBlesta($get){
+		if(empty($get)) return false;
+
+		$sign = $this->getSign($get);
+
+		if($sign === $get['sign']){
+			$signResult = true;
+		}else{
+			$signResult = false;
+		}
+
+		return $signResult;
+	}
+
 
 	// 查询订单支付状态
 	public function orderStatus($trade_no){
+		//Add empty value check
+		if(empty($trade_no)){
+			return false;
+		}
 		$result = $this->queryOrder($trade_no);
 		if($result['status']==1){
 			return true;
@@ -98,6 +122,14 @@ class EpayCore
 		return $arr;
 	}
 
+	// 查询商户信息
+	public function queryMerchant($pid, $key, $api_url){
+		$url = $this->api_url.'?act=order&pid=' . $this->pid . '&key=' . $this->key;
+		$response = $this->getHttpResponse($url);
+		$arr = json_decode($response, true);
+		return $arr;
+	}
+	
 	// 订单退款
 	public function refund($trade_no, $money){
 		$url = $this->api_url.'?act=refund';
@@ -135,8 +167,10 @@ class EpayCore
 	private function getHttpResponse($url, $post = false, $timeout = 10){
 		$ch = curl_init($url);
 		curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
-		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-		curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+		//set to ture to use https
+		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+		//set to ture to use https
+		curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, true);
 		$httpheader[] = "Accept: */*";
 		$httpheader[] = "Accept-Language: zh-CN,zh;q=0.8";
 		$httpheader[] = "Connection: close";
