@@ -2,28 +2,28 @@
     <ul>
         <li>
             <?php
-            $this->Form->label($this->_('EPayGateway.meta.apiurl', true), 'apiurl');
+            $this->Form->label($this->_('Epay.meta.apiurl', true), 'apiurl');
             $this->Form->fieldText('apiurl', ($meta['apiurl'] ?? null), ['id' => 'apiurl', 'class' => 'block']);
             ?>
         </li>
         <li>
             <?php
-            $this->Form->label($this->_('EPayGateway.meta.pid', true), 'pid');
+            $this->Form->label($this->_('Epay.meta.pid', true), 'pid');
             $this->Form->fieldText('pid', ($meta['pid'] ?? null), ['id' => 'pid', 'class' => 'block']);
             ?>
         </li>
         <li>
             <?php
-            $this->Form->label($this->_('EPayGateway.meta.key', true), 'key');
+            $this->Form->label($this->_('Epay.meta.key', true), 'key');
             $this->Form->fieldText('key', ($meta['key'] ?? null), ['id' => 'key', 'class' => 'block']);
             ?>
         </li>
     </ul>
 
     <div class="title_row">
-        <h3><?php $this->_('EPayGateway.webhook'); ?></h3>
+        <h3><?php $this->_('Epay.webhook'); ?></h3>
     </div>
     <div class="pad">
-        <p><?php $this->_('EPayGateway.webhook_note'); ?></p>
+        <p><?php $this->_('Epay.webhook_note'); ?></p>
         <code><?php echo Configure::get('Blesta.gw_callback_url') . Configure::get('Blesta.company_id') . '/epay/'; ?></code>
     </div>

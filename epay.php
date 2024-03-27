@@ -11,7 +11,7 @@
  * @license http://www.blesta.com/license/ The Blesta License Agreement
  * @link http://www.blesta.com/ Blesta
  */
-class EPayGateway extends NonmerchantGateway
+class Epay extends NonmerchantGateway
 {
     /**
      * @var array An array of meta data for this gateway
@@ -50,11 +50,11 @@ class EPayGateway extends NonmerchantGateway
     {
         $this->meta = $meta;
         //Also set the EPay parameters
-        $ePayConfig['apiurl']     = $meta->apiurl;
+        $ePayConfig['apiurl']     = $meta['apiurl'];
         //商户ID
-        $ePayConfig['pid']        = $meta->pid;
+        $ePayConfig['pid']        = $meta['pid'];
         //商户密钥
-        $ePayConfig['key']        = $meta->key;
+        $ePayConfig['key']        = $meta['key'];
 
     }
 
@@ -68,7 +68,7 @@ class EPayGateway extends NonmerchantGateway
     {
         // Load the view into this object, so helpers can be automatically add to the view
         $this->view = new View('settings', 'default');
-        $this->view->setDefaultView('components' . DS . 'gateways' . DS . 'nonmerchant' . DS . 'epay_gateway' . DS);
+        $this->view->setDefaultView('components' . DS . 'gateways' . DS . 'nonmerchant' . DS . 'epay' . DS);
 
         // Load the helpers required for this view
         Loader::loadHelpers($this, ['Form', 'Html']);
@@ -94,12 +94,12 @@ class EPayGateway extends NonmerchantGateway
                 'empty' => [
                     'rule' => 'isEmpty',
                     'negate' => true,
-                    'message' => Language::_('EPayGateway.!error.pid.empty', true)
+                    'message' => Language::_('Epay.!error.pid.empty', true)
                 ],
                 //Check is the pid is valid
                 'valid' => [
                     'rule' => [[$this, 'validateConnection'], $meta['pid']],
-                    'message' => Language::_('EPayGateway.!error.pid.valid', true)
+                    'message' => Language::_('Epay.!error.pid.valid', true)
                 ]
             ],
             //Merchant Key
@@ -108,12 +108,12 @@ class EPayGateway extends NonmerchantGateway
                 'empty' => [
                     'rule' => 'isEmpty',
                     'negate' => true,
-                    'message' => Language::_('EPayGateway.!error.key.empty', true)
+                    'message' => Language::_('Epay.!error.key.empty', true)
                 ],
                 //Check is the key is valid
                 'valid' => [
                     'rule' => [[$this, 'validateConnection'], $meta['key']],
-                    'message' => Language::_('EPayGateway.!error.key.valid', true)
+                    'message' => Language::_('Epay.!error.key.valid', true)
                 ]
             ],
             //Gateway URL
@@ -122,12 +122,12 @@ class EPayGateway extends NonmerchantGateway
                 'empty' => [
                     'rule' => 'isEmpty',
                     'negate' => true,
-                    'message' => Language::_('EPayGateway.!error.apiurl.empty', true)
+                    'message' => Language::_('Epay.!error.apiurl.empty', true)
                 ],
                 //Check is apiurl is valid
                 'valid' => [
                     'rule' => [[$this, 'validateConnection'], $meta['apiurl']],
-                    'message' => Language::_('EPayGateway.!error.apiurl.valid', true)
+                    'message' => Language::_('Epay.!error.apiurl.valid', true)
                 ]
             ]
         ];
@@ -243,7 +243,7 @@ class EPayGateway extends NonmerchantGateway
             //TO-DO: Add a dropdown to let user select payment method. (No ETA)
             "type" => '',
             //Notify URL is the blesta websocket URL.
-            "notify_url" => Configure::get('Blesta.gw_callback_url') . Configure::get('Blesta.company_id') . '/epay/';,
+            "notify_url" => Configure::get('Blesta.gw_callback_url') . Configure::get('Blesta.company_id') . '/epay/',
             //Return URL is the URL that user will be redirected to after payment.
             "return_url" => $options['return_url'],
             //out_trade_no is our blesta created order number(Invoice number)
@@ -339,7 +339,7 @@ class EPayGateway extends NonmerchantGateway
         if($sign_result == false) {
             //Throw error when sign validation failed
             $this->Input->setErrors([
-                'event' => ['invalid_sign' => Language::_('EPayGateway.!error.event.invalid_sign', true)]
+                'event' => ['invalid_sign' => Language::_('Epay.!error.event.invalid_sign', true)]
             ]);
             return; 
         }
@@ -347,7 +347,7 @@ class EPayGateway extends NonmerchantGateway
         if ($get['trade_status'] != 'TRADE_SUCCESS') {
             //Throw error event for unsuccessful payment result
             $this->Input->setErrors([
-                'event' => ['unsupported' => Language::_('EPayGateway.!error.event.unsupported', true)]
+                'event' => ['unsupported' => Language::_('Epay.!error.event.unsupported', true)]
             ]);
             return;
         }
@@ -356,7 +356,7 @@ class EPayGateway extends NonmerchantGateway
 
         // log the sucess payment in blesta logs
         $this->log('validate', json_encode($get), 'input', !empty($get));
-        return $this->handleEPayOrder($get)
+        return $this->handleEPayOrder($get);
     }
 
     /**
@@ -391,7 +391,7 @@ class EPayGateway extends NonmerchantGateway
         if($sign_result == false) {
             //Throw error when sign validation failed
             $this->Input->setErrors([
-                'event' => ['invalid_sign' => Language::_('EPayGateway.!error.event.invalid_sign', true)]
+                'event' => ['invalid_sign' => Language::_('Epay.!error.event.invalid_sign', true)]
             ]);
             return; 
         }
@@ -399,17 +399,17 @@ class EPayGateway extends NonmerchantGateway
         if ($get['trade_status'] != 'TRADE_SUCCESS') {
             //Throw error event for unsuccessful payment result
             $this->Input->setErrors([
-                'event' => ['unsupported' => Language::_('EPayGateway.!error.event.unsupported', true)]
+                'event' => ['unsupported' => Language::_('Epay.!error.event.unsupported', true)]
             ]);
             return;
         }
         //Send a extra request to API Gateway to make sure gateway really get the payment
-        $isPaid = $this->$orderStatus($get['trade_no'] ?? null);
+        $isPaid = $api->$orderStatus($get['trade_no'] ?? null);
         if(!$isPaid){
             //user return success but gateway not receive payment???
             //Suspicous! Not accept this request.
-            this->Input->setErrors([
-                'event' => ['fake_success_payment' => Language::_('EPayGateway.!error.event.fake_success_payment', true)]
+            $this->Input->setErrors([
+                'event' => ['fake_success_payment' => Language::_('Epay.!error.event.fake_success_payment', true)]
             ]);
             return;
         }
@@ -417,7 +417,7 @@ class EPayGateway extends NonmerchantGateway
 
         // log the sucess payment in blesta logs
         $this->log('validate', json_encode($get), 'input', !empty($get));
-        return $this->handleEPayOrder($get)
+        return $this->handleEPayOrder($get);
     }
 
     /**
@@ -439,7 +439,7 @@ class EPayGateway extends NonmerchantGateway
         //TO-DO Add automatic refund feature
         // Method is unsupported for now
         if (isset($this->Input))
-        $this->Input->setErrors($this->getCommonError("unsupported"));
+            $this->Input->setErrors($this->getCommonError("unsupported"));
     }
 
     /**
@@ -459,7 +459,7 @@ class EPayGateway extends NonmerchantGateway
     {
         // Method is unsupported for now
         if (isset($this->Input))
-        $this->Input->setErrors($this->getCommonError("unsupported"));
+            $this->Input->setErrors($this->getCommonError("unsupported"));
     }
 
     /**
@@ -506,7 +506,7 @@ class EPayGateway extends NonmerchantGateway
      *
      * @param array $ePayConfig The EPay configuration
      */
-    private function getApi($ePayConfig)
+    private function getApi(array $ePayConfig)
     {
         //$environment = ($sandbox == 'false' ? 'live' : 'sandbox');
         //Based on input parameter, constuct the parameter array
@@ -526,7 +526,7 @@ class EPayGateway extends NonmerchantGateway
     {
         try {
             // Initialize API
-            $api = $this->getApi($client_id, $client_secret, $sandbox);
+            $api = $this->getApi($ePayConfig);
             $merchantInfo = $api->queryMerchant($pid, $key, $apiurl);
 
             if(!empty($merchantInfo) && !empty($merchantInfo['code'])){
