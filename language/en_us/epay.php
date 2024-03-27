@@ -20,7 +20,7 @@ $lang['Epay.!error.event.unsupported'] = 'Unsupported order status. We only look
 $lang['Epay.!error.event.fake_success_payment'] = 'User return success redirect payment result. But remote payment gateway do not recieve payment.';
 
 // Settings
-$lang['Epay.meta.pid'] = 'EPay Merchant(Shop) ID';
+$lang['Epay.meta.pid'] = 'EPay Merchant (Shop) ID';
 $lang['Epay.meta.key'] = 'EPay API Key';
 $lang['Epay.meta.apiurl'] = 'EPay Gateway URL';
 

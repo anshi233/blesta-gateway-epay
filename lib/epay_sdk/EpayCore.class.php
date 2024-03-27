@@ -124,7 +124,7 @@ class EpayCore
 
 	// 查询商户信息
 	public function queryMerchant($pid, $key, $api_url){
-		$url = $this->api_url.'?act=order&pid=' . $this->pid . '&key=' . $this->key;
+		$url = $this->api_url.'?act=query&pid=' . $this->pid . '&key=' . $this->key;
 		$response = $this->getHttpResponse($url);
 		$arr = json_decode($response, true);
 		return $arr;
@@ -170,7 +170,7 @@ class EpayCore
 		//set to ture to use https
 		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
 		//set to ture to use https
-		curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, true);
+		curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
 		$httpheader[] = "Accept: */*";
 		$httpheader[] = "Accept-Language: zh-CN,zh;q=0.8";
 		$httpheader[] = "Connection: close";

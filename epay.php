@@ -20,7 +20,7 @@ class Epay extends NonmerchantGateway
     /**
      * @var array An array of EPay parameters
      */
-    private $ePayConfig;
+    private array $ePayConfig;
 
     /**
      * Construct a new merchant gateway
@@ -50,11 +50,11 @@ class Epay extends NonmerchantGateway
     {
         $this->meta = $meta;
         //Also set the EPay parameters
-        $ePayConfig['apiurl']     = $meta['apiurl'];
-        //商户ID
-        $ePayConfig['pid']        = $meta['pid'];
-        //商户密钥
-        $ePayConfig['key']        = $meta['key'];
+        $this->ePayConfig = [
+            'pid' => $meta['pid'],
+            'key' => $meta['key'],
+            'apiurl' => $meta['apiurl']
+        ];
 
     }
 
@@ -86,6 +86,8 @@ class Epay extends NonmerchantGateway
      */
     public function editSettings(array $meta)
     {
+        //TO-DO: Add functions to validate the connection
+        TO-DO
         // Set rules
         $rules = [
             //Merchant ID
@@ -96,11 +98,11 @@ class Epay extends NonmerchantGateway
                     'negate' => true,
                     'message' => Language::_('Epay.!error.pid.empty', true)
                 ],
-                //Check is the pid is valid
-                'valid' => [
-                    'rule' => [[$this, 'validateConnection'], $meta['pid']],
-                    'message' => Language::_('Epay.!error.pid.valid', true)
-                ]
+                ////Check is the pid is valid
+                //'valid' => [
+                //    'rule' => [[$this, 'validateConnection'], $meta['key'], $meta['apiurl']],
+                //    'message' => Language::_('Epay.!error.pid.valid', true)
+                //]
             ],
             //Merchant Key
             'key' => [
@@ -111,10 +113,10 @@ class Epay extends NonmerchantGateway
                     'message' => Language::_('Epay.!error.key.empty', true)
                 ],
                 //Check is the key is valid
-                'valid' => [
-                    'rule' => [[$this, 'validateConnection'], $meta['key']],
-                    'message' => Language::_('Epay.!error.key.valid', true)
-                ]
+                //'valid' => [
+                //    'rule' => [[$this, 'validateConnection'], $meta['pid'], $meta['apiurl']],
+                //    'message' => Language::_('Epay.!error.key.valid', true)
+                //]
             ],
             //Gateway URL
             'apiurl' => [
@@ -125,10 +127,10 @@ class Epay extends NonmerchantGateway
                     'message' => Language::_('Epay.!error.apiurl.empty', true)
                 ],
                 //Check is apiurl is valid
-                'valid' => [
-                    'rule' => [[$this, 'validateConnection'], $meta['apiurl']],
-                    'message' => Language::_('Epay.!error.apiurl.valid', true)
-                ]
+                //'valid' => [
+                //    'rule' => [[$this, 'validateConnection'], $meta['pid'], $meta['key']],
+                //    'message' => Language::_('Epay.!error.apiurl.valid', true)
+                //]
             ]
         ];
         $this->Input->setRules($rules);
@@ -232,13 +234,13 @@ class Epay extends NonmerchantGateway
 
 
         // Initialize API
-        $api = $this->getApi($ePayConfig);
+        $api = $this->getApi($this->ePayConfig);
         // For EPay, we need to don't need to create order first.
         // Just collect enough information and send to EPay directly, it will give us a payment link.
         // We will use the EPayCore class to do this.
         // ePayUrl is the link that we want to redirect the user to.
         $orderInfo = array(
-            "pid" => $ePayConfig['pid'],
+            "pid" => $this->ePayConfig['pid'],
             //Type leave blank for now. We want to let user select payment method. (Alipay, WeChat Pay .etc)
             //TO-DO: Add a dropdown to let user select payment method. (No ETA)
             "type" => '',
@@ -249,7 +251,7 @@ class Epay extends NonmerchantGateway
             //out_trade_no is our blesta created order number(Invoice number)
             "out_trade_no" => $out_trade_no,
             //name is the product name e.g. "HK VPS Value Plan"
-            "name" => $option->description,
+            "name" => $options['description'],
             //money is the price of the product in RMB!!!
             "money"	=> $amount,
             //use EPay API's param field to passing client_id
@@ -330,7 +332,7 @@ class Epay extends NonmerchantGateway
     public function validate(array $get, array $post)
     {
         // Initialize API
-        $api = $this->getApi($ePayConfig);
+        $api = $this->getApi($this->ePayConfig);
         //$webhook = json_decode($payload);
         // Fetch webhook payload
         // $payload = file_get_contents('php://input');
@@ -382,7 +384,7 @@ class Epay extends NonmerchantGateway
     public function success(array $get, array $post)
     {
         // Initialize API
-        $api = $this->getApi($ePayConfig);
+        $api = $this->getApi($this->ePayConfig);
         //$webhook = json_decode($payload);
         // Fetch webhook payload
         // $payload = file_get_contents('php://input');
@@ -404,7 +406,7 @@ class Epay extends NonmerchantGateway
             return;
         }
         //Send a extra request to API Gateway to make sure gateway really get the payment
-        $isPaid = $api->$orderStatus($get['trade_no'] ?? null);
+        $isPaid = $api->orderStatus($get['trade_no'] ?? null);
         if(!$isPaid){
             //user return success but gateway not receive payment???
             //Suspicous! Not accept this request.
@@ -506,12 +508,12 @@ class Epay extends NonmerchantGateway
      *
      * @param array $ePayConfig The EPay configuration
      */
-    private function getApi(array $ePayConfig)
+    private function getApi($config)
     {
         //$environment = ($sandbox == 'false' ? 'live' : 'sandbox');
         //Based on input parameter, constuct the parameter array
 
-        return new EpayCore($ePayConfig);
+        return new EpayCore($config);
     }
 
     /**
@@ -525,15 +527,20 @@ class Epay extends NonmerchantGateway
     public function validateConnection($pid, $key, $apiurl)
     {
         try {
+            $ePayConfigTemp = [
+                'pid' => $pid,
+                'key' => $key,
+                'apiurl' => $apiurl
+            ];
             // Initialize API
-            $api = $this->getApi($ePayConfig);
+            $api = $this->getApi($ePayConfigTemp);
             $merchantInfo = $api->queryMerchant($pid, $key, $apiurl);
 
             if(!empty($merchantInfo) && !empty($merchantInfo['code'])){
-                if($code == 1){
+                if($merchantInfo['code'] == 1){
                     return true;
                 }else{
-                    $this->Input->setErrors(['create' => ['response' => 'EPay API Gateway return code ' . $code]]);
+                    $this->Input->setErrors(['create' => ['response' => 'EPay API Gateway return code ' . $merchantInfo['code']]]);
                     return false;
                 }
             }
