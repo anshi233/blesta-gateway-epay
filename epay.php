@@ -86,8 +86,6 @@ class Epay extends NonmerchantGateway
      */
     public function editSettings(array $meta)
     {
-        //TO-DO: Add functions to validate the connection
-        TO-DO
         // Set rules
         $rules = [
             //Merchant ID
@@ -98,11 +96,11 @@ class Epay extends NonmerchantGateway
                     'negate' => true,
                     'message' => Language::_('Epay.!error.pid.empty', true)
                 ],
-                ////Check is the pid is valid
-                //'valid' => [
-                //    'rule' => [[$this, 'validateConnection'], $meta['key'], $meta['apiurl']],
-                //    'message' => Language::_('Epay.!error.pid.valid', true)
-                //]
+                // //Check is the pid is valid
+                // 'valid' => [
+                //     'rule' => [[$this, 'validatePid'], $meta['key'], $meta['apiurl']],
+                //     'message' => Language::_('Epay.!error.pid.valid', true)
+                // ]
             ],
             //Merchant Key
             'key' => [
@@ -112,11 +110,11 @@ class Epay extends NonmerchantGateway
                     'negate' => true,
                     'message' => Language::_('Epay.!error.key.empty', true)
                 ],
-                //Check is the key is valid
-                //'valid' => [
-                //    'rule' => [[$this, 'validateConnection'], $meta['pid'], $meta['apiurl']],
-                //    'message' => Language::_('Epay.!error.key.valid', true)
-                //]
+                // //Check is the key is valid
+                // 'valid' => [
+                //     'rule' => [[$this, 'validateKey'], $meta['pid'], $meta['apiurl']],
+                //     'message' => Language::_('Epay.!error.key.valid', true)
+                // ]
             ],
             //Gateway URL
             'apiurl' => [
@@ -127,16 +125,17 @@ class Epay extends NonmerchantGateway
                     'message' => Language::_('Epay.!error.apiurl.empty', true)
                 ],
                 //Check is apiurl is valid
-                //'valid' => [
-                //    'rule' => [[$this, 'validateConnection'], $meta['pid'], $meta['key']],
-                //    'message' => Language::_('Epay.!error.apiurl.valid', true)
-                //]
+                'valid' => [
+                    'rule' => [[$this, 'validateApiurl'], $meta['pid'], $meta['key']],
+                    'message' => Language::_('Epay.!error.api.valid', true)
+                ]
             ]
         ];
         $this->Input->setRules($rules);
 
         // Validate the given meta data to ensure it meets the requirements
         $this->Input->validates($meta);
+        
 
         // Return the meta data, no changes required regardless of success or failure for this gateway
         return $meta;
@@ -206,7 +205,7 @@ class Epay extends NonmerchantGateway
      */
     public function buildProcess(array $contact_info, $amount, array $invoice_amounts = null, array $options = null)
     {
-        // Force 2-decimal places only
+        // Force 1-decimal places only
         $amount = round($amount, 2);
         if (isset($options['recur']['amount'])) {
             $options['recur']['amount'] = round($options['recur']['amount'], 2);
@@ -229,7 +228,15 @@ class Epay extends NonmerchantGateway
         $company = $this->Companies->get(Configure::get('Blesta.company_id'));
 
         //Serialize all invoice 
-        $out_trade_no =  $this->serializeInvoices($invoice_amounts);
+        //$out_trade_no =  $this->serializeInvoices($invoice_amounts);
+
+        //EPay only support one invoice for each transaction
+        //Give error if more than one invoice
+        if(count($invoice_amounts) > 1){
+            $this->Input->setErrors(['api' => ['internal' => 'EPay only support one invoice for each transaction']]);
+            return;
+        }
+        $out_trade_no = $invoice_amounts[0]['id'];
 
 
 
@@ -301,7 +308,8 @@ class Epay extends NonmerchantGateway
             'client_id' => $clientId ?? null,
             'amount' => $amount,
             'currency' => 'CNY',
-            'invoices' => $this->unserializeInvoices($out_trade_no),
+            //'invoices' => $this->unserializeInvoices($out_trade_no),
+            'invoices' => [['id' => $out_trade_no, 'amount' => $amount]],
             'status' => 'approved',
             'reference_id' => null,
             'transaction_id' => $trade_no,
@@ -476,7 +484,9 @@ class Epay extends NonmerchantGateway
     {
         $str = '';
         foreach ($invoices as $i => $invoice) {
-            $str .= ($i > 0 ? '|' : '') . $invoice['id'] . '=' . $invoice['amount'];
+            //$str .= ($i > 0 ? '|' : '') . $invoice['id'] . '=' . $invoice['amount'];
+            //EPay only accecpt '_' as separator
+            $str .= ($i > 0 ? '_' : '') . $invoice['id'] . '=' . $invoice['amount'];
         }
         return $str;
     }
@@ -492,7 +502,8 @@ class Epay extends NonmerchantGateway
     private function unserializeInvoices($str)
     {
         $invoices = [];
-        $temp = explode('|', $str);
+        //$temp = explode('|', $str);
+        $temp = explode('_', $str);
         foreach ($temp as $pair) {
             $pairs = explode('=', $pair, 2);
             if (count($pairs) != 2) {
@@ -539,6 +550,10 @@ class Epay extends NonmerchantGateway
             if(!empty($merchantInfo) && !empty($merchantInfo['code'])){
                 if($merchantInfo['code'] == 1){
                     return true;
+                }elseif($merchantInfo['code'] == -3){
+                    //API Credential is invalid.
+                    $this->Input->setErrors(['create' => ['response' => 'EPay API Gateway return code ' . $merchantInfo['code'] . "\nPlease check you API Key and Merchant ID"]]);
+                    return false;
                 }else{
                     $this->Input->setErrors(['create' => ['response' => 'EPay API Gateway return code ' . $merchantInfo['code']]]);
                     return false;
@@ -552,4 +567,30 @@ class Epay extends NonmerchantGateway
             return false;
         }
     }
+
+    /**
+     * Validate pid. api url and key comes from meta data
+     *
+     * @param string $file The configuration file to load
+     */
+    public function validatePid($pid, $key, $apiurl){
+        return $this->validateConnection($pid, $key, $apiurl);
+    }
+    /**
+     * Validate api url. pid and key comes from meta data
+     *
+     * @param string $file The configuration file to load
+     */
+    public function validateApiurl($apiurl, $pid, $key){
+        return $this->validateConnection($pid, $key, $apiurl);
+    }
+    /**
+     * Validate key. pid and api url comes from meta data
+     *
+     * @param string $file The configuration file to load
+     */
+    public function validateKey($key, $pid, $apiurl){
+        return $this->validateConnection($pid, $key, $apiurl);
+    }
+
 }

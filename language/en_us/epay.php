@@ -13,7 +13,7 @@ $lang['Epay.!error.pid.valid'] = 'pid is invalid.';
 $lang['Epay.!error.key.empty'] = 'key is empty.';
 $lang['Epay.!error.key.valid'] = 'key is invalid.';
 $lang['Epay.!error.apiurl.empty'] = 'apiurl is empty.';
-$lang['Epay.!error.apiurl.valid'] = 'apiurl is invalid.';
+$lang['Epay.!error.api.valid'] = 'Failed to validate api credentials. Check your settings.';
 
 $lang['Epay.!error.event.invalid_sign'] = 'Invalid API signature is received.';
 $lang['Epay.!error.event.unsupported'] = 'Unsupported order status. We only looking at success order';

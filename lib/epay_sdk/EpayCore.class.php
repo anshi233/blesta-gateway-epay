@@ -87,7 +87,10 @@ class EpayCore
 	 **/
 	public function verifyReturnBlesta($get){
 		if(empty($get)) return false;
-
+		//Remove the blesta appended field '0', '1' and 'client_id' from $get
+		unset($get['0']);
+		unset($get['1']);
+		unset($get['client_id']);
 		$sign = $this->getSign($get);
 
 		if($sign === $get['sign']){
