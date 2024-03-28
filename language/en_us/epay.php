@@ -3,7 +3,7 @@
  * en_us language for the EPay gateway.
  */
 // Basics
-$lang['Epay.name'] = 'EPay Gateway';
+$lang['Epay.name'] = 'EPay (Alipay(支付宝), Wechatpay(微信支付) and more)';
 $lang['Epay.description'] = 'EPay gateway.';
 
 

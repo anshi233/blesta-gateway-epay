@@ -1,27 +1,44 @@
-# EPay
+# Blesta EPay（易支付） Payment Gateway
 
-With a simple, single integration you can accept debit and credit cards, PayPal, and 10+ local payment methods.
+A [EPay（易支付）](https://pay.cccyun.cc/) non-merchant gateway plugin for Blesta.
 
 ## Install the Gateway
+1. Recommended: you can download the plugin via git. 
 
-1. You can install the gateway via composer:
+    Go to /components/gateways/nonmerchant folder and run
+    ```
+    git clone https://github.com/anshi233/blesta-gateway-epay.git epay
+    ```
+
+2. OR You can install the gateway via composer:
 
     ```
-    composer require blesta/paypal_checkout
+    composer require blesta/epay
     ```
 
-2. OR upload the source code to a /components/gateways/nonmerchant/paypal_checkout/ directory within
+3. OR upload the source code to a /components/gateways/nonmerchant/epay/ directory within
 your Blesta installation path.
 
     For example:
 
     ```
-    /var/www/html/blesta/components/gateways/nonmerchant/paypal_checkout/
+    /var/www/html/blesta/components/gateways/nonmerchant/epay/
     ```
 
 3. Log in to your admin Blesta account and navigate to
-> Settings > Payment Gateways
+   > Settings > Payment Gateways
 
-4. Find the PayPal Checkout gateway and click the "Install" button to install it
+4. Find the EPay gateway and click the "Install" button to install it
 
 5. You're done!
+
+# Limitation
+* Each payment trascation only support one inovice order.
+* Currently no refund support.
+* No void invoice support (EPay API does not support it).
+
+# TO-DO
+* Any bug fix.
+* add refund support. 
+
+# 
