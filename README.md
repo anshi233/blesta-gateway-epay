@@ -33,6 +33,7 @@ your Blesta installation path.
 5. You're done!
 
 # Limitation
+* EPay only support CNY. Please use Blesta's currency setting to convert currencies.
 * Each payment trascation only support one inovice order.
 * Currently no refund support.
 * No void invoice support (EPay API does not support it).

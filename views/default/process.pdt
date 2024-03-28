@@ -1,5 +1,7 @@
     <a target="_blank"
         href='<?php echo $epay_url ?>'
     >
-        <img src="<?php echo $this->Html->safe($this->view_dir . 'images/logo.png');?>" alt="payment logo"></img>
+        <img src="<?php echo $this->Html->safe($this->view_dir . 'images/alipay.webp');?>" alt="payment logo" 
+           style="max-width: 50%; height: auto;display: block;margin-left: auto;margin-right: auto;"
+        ></img>
     </a>
