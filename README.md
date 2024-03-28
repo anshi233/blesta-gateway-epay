@@ -41,4 +41,9 @@ your Blesta installation path.
 * Any bug fix.
 * add refund support. 
 
-# 
+# Support me
+Considering buying a VPS from [CatServer.ca](https://www.catserver.ca)
+
+# Reference
+* [blesta-stripe-universal](https://github.com/anshi233/blesta-stripe-universal)
+* [gateway-paypal_checkout](https://github.com/blesta/gateway-paypal_checkout)
