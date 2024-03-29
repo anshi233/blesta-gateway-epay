@@ -243,7 +243,7 @@ class Epay extends NonmerchantGateway
             //money is the price of the product in RMB!!!
             "money"	=> $amount,
             //use EPay API's param field to passing client_id
-            "param" => "client_id=" . $contact_info['id']
+            "param" => "client_id=" . $contact_info['client_id']
         );
         //Log the api input
         $this->log('buildProcess', json_encode($orderInfo), 'input', true);
