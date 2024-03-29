@@ -2,14 +2,11 @@
 /**
  * EPay(易支付) Gateway
  *
- * Allows users to pay via PayPal and 10+ local payment methods
+ * Allows users to pay via Alipay, Wechat Pay, Union Pay, USDT, etc. (depends on remote EPay Gateway)
  *
  * @package blesta
- * @subpackage blesta.components.gateways.nonmerchant.paypal_checkout
- * @author Phillips Data, Inc.
- * @copyright Copyright (c) 2023, Phillips Data, Inc.
- * @license http://www.blesta.com/license/ The Blesta License Agreement
- * @link http://www.blesta.com/ Blesta
+ * @subpackage blesta.components.gateways.nonmerchant.epay
+ * @author Anshi
  */
 class Epay extends NonmerchantGateway
 {
@@ -28,7 +25,7 @@ class Epay extends NonmerchantGateway
     public function __construct()
     {
         //TO-DO: replace to EPay API SDK
-        // Load the PayPal Checkout API
+        // Load the EPay API SDK (Coming from v1.3)
         Loader::load(dirname(__FILE__) . DS . 'lib/epay_sdk' . DS . 'EpayCore.class.php');
 
         // Load configuration required by this gateway
@@ -96,11 +93,6 @@ class Epay extends NonmerchantGateway
                     'negate' => true,
                     'message' => Language::_('Epay.!error.pid.empty', true)
                 ],
-                // //Check is the pid is valid
-                // 'valid' => [
-                //     'rule' => [[$this, 'validatePid'], $meta['key'], $meta['apiurl']],
-                //     'message' => Language::_('Epay.!error.pid.valid', true)
-                // ]
             ],
             //Merchant Key
             'key' => [
@@ -110,11 +102,6 @@ class Epay extends NonmerchantGateway
                     'negate' => true,
                     'message' => Language::_('Epay.!error.key.empty', true)
                 ],
-                // //Check is the key is valid
-                // 'valid' => [
-                //     'rule' => [[$this, 'validateKey'], $meta['pid'], $meta['apiurl']],
-                //     'message' => Language::_('Epay.!error.key.valid', true)
-                // ]
             ],
             //Gateway URL
             'apiurl' => [
@@ -148,9 +135,10 @@ class Epay extends NonmerchantGateway
      */
     public function encryptableFields()
     {
-        //return empty array
+        
         //For debug, no need to encrypt now
         //return ['key'];
+        //return empty array
         return [];
     }
 
@@ -213,7 +201,6 @@ class Epay extends NonmerchantGateway
 
         //EPay only support RMB
 
-
         // At this line, we will load the view html file. It is the payment button.
         $this->view = $this->makeView('process', 'default', str_replace(ROOTWEBDIR, '', dirname(__FILE__) . DS));
 
@@ -223,12 +210,6 @@ class Epay extends NonmerchantGateway
 
         // Get Client Information
         Loader::loadModels($this, ['Contacts']);
-
-        // Get company information
-        $company = $this->Companies->get(Configure::get('Blesta.company_id'));
-
-        //Serialize all invoice 
-        //$out_trade_no =  $this->serializeInvoices($invoice_amounts);
 
         //EPay only support one invoice for each transaction
         //Give error if more than one invoice
@@ -289,8 +270,6 @@ class Epay extends NonmerchantGateway
     private function handleEPayOrder(array $get){
         $out_trade_no = $get['out_trade_no'] ?? null;
         $trade_no = $get['trade_no'] ?? null;
-        $trade_status = $get['trade_status'] ?? null;
-        $type = $get['type'] ?? null;
         //I will use amount not money
         $amount = $get['money'] ?? null;
 
@@ -341,9 +320,6 @@ class Epay extends NonmerchantGateway
     {
         // Initialize API
         $api = $this->getApi($this->ePayConfig);
-        //$webhook = json_decode($payload);
-        // Fetch webhook payload
-        // $payload = file_get_contents('php://input');
         //From raw get data verify EPay sign
         $sign_result = $api->verifyReturnBlesta($get);
         if($sign_result == false) {
@@ -362,10 +338,12 @@ class Epay extends NonmerchantGateway
             return;
         }
 
-
-
         // log the sucess payment in blesta logs
         $this->log('validate', json_encode($get), 'input', !empty($get));
+        //Tell Epay API Gateway that we have received the payment
+        echo 'success';
+
+
         return $this->handleEPayOrder($get);
     }
 
@@ -393,9 +371,6 @@ class Epay extends NonmerchantGateway
     {
         // Initialize API
         $api = $this->getApi($this->ePayConfig);
-        //$webhook = json_decode($payload);
-        // Fetch webhook payload
-        // $payload = file_get_contents('php://input');
         //From raw get data verify EPay sign
         $sign_result = $api->verifyReturnBlesta($get);
         if($sign_result == false) {
@@ -473,66 +448,21 @@ class Epay extends NonmerchantGateway
     }
 
     /**
-     * Serializes an array of invoice info into a string
-     *
-     * @param array A numerically indexed array invoices info including:
-     *  - id The ID of the invoice
-     *  - amount The amount relating to the invoice
-     * @return string A serialized string of invoice info in the format of key1=value1|key2=value2
-     */
-    private function serializeInvoices(array $invoices)
-    {
-        $str = '';
-        foreach ($invoices as $i => $invoice) {
-            //$str .= ($i > 0 ? '|' : '') . $invoice['id'] . '=' . $invoice['amount'];
-            //EPay only accecpt '_' as separator
-            $str .= ($i > 0 ? '_' : '') . $invoice['id'] . '=' . $invoice['amount'];
-        }
-        return $str;
-    }
-
-    /**
-     * Unserializes a string of invoice info into an array
-     *
-     * @param string A serialized string of invoice info in the format of key1=value1|key2=value2
-     * @return array A numerically indexed array invoices info including:
-     *  - id The ID of the invoice
-     *  - amount The amount relating to the invoice
-     */
-    private function unserializeInvoices($str)
-    {
-        $invoices = [];
-        //$temp = explode('|', $str);
-        $temp = explode('_', $str);
-        foreach ($temp as $pair) {
-            $pairs = explode('=', $pair, 2);
-            if (count($pairs) != 2) {
-                continue;
-            }
-            $invoices[] = ['id' => $pairs[0], 'amount' => $pairs[1]];
-        }
-        return $invoices;
-    }
-
-    /**
      * Loads the given API if not already loaded
      *
      * @param array $ePayConfig The EPay configuration
      */
     private function getApi($config)
     {
-        //$environment = ($sandbox == 'false' ? 'live' : 'sandbox');
-        //Based on input parameter, constuct the parameter array
-
         return new EpayCore($config);
     }
 
     /**
      * Validates if the provided API Key is valid
      *
-     * @param string $client_id The client ID of PayPal Checkout
-     * @param string $client_secret The client secret key
-     * @param string $sandbox Whether or not to use the sandbox environment
+     * @param string $pid The merchant ID
+     * @param string $key The API key
+     * @param string $apiurl the EPay gateway API URL
      * @return bool True if the API Key is valid, false otherwise
      */
     public function validateConnection($pid, $key, $apiurl)
