@@ -223,6 +223,12 @@ class Epay extends NonmerchantGateway
 
         // Initialize API
         $api = $this->getApi($this->ePayConfig);
+        //2024-11-28 Found an issue that the return url is different for payment made from order page or invoice payment page.
+        //Always use invoice payment page to make epay gateway api happy. Otherwise it will give parameter changed error.
+        $callbackUrl = Configure::get('Blesta.gw_callback_url');
+        preg_match('/^(https?:\/\/[^\/]+)/', $callbackUrl, $matches);
+        $baseUrl = $matches[1];
+        
         // For EPay, we need to don't need to create order first.
         // Just collect enough information and send to EPay directly, it will give us a payment link.
         // We will use the EPayCore class to do this.
@@ -235,7 +241,9 @@ class Epay extends NonmerchantGateway
             //Notify URL is the blesta websocket URL.
             "notify_url" => Configure::get('Blesta.gw_callback_url') . Configure::get('Blesta.company_id') . '/epay/',
             //Return URL is the URL that user will be redirected to after payment.
-            "return_url" => $options['return_url'],
+            //"return_url" => $options['return_url'],
+            //TO-DO: May have issue if multi-company is used.
+            "return_url" => $baseUrl . '/client/pay/received/epay/?client_id=' . $contact_info['client_id'],
             //out_trade_no is our blesta created order number(Invoice number)
             "out_trade_no" => $out_trade_no,
             //name is the product name e.g. "HK VPS Value Plan"
